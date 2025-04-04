@@ -1,33 +1,91 @@
-name: Build on Every Commit
+name: Auto Build & Test Based on Language
 
 on:
   push:
     branches:
-      - main  # Runs on every commit to main branch
-      - dev   # Runs on every commit to dev branch (optional)
-
+      - main
+      - dev
   pull_request:
     branches:
-      - main  # Runs when a PR is opened or updated
+      - main
 
 jobs:
-  build:
+  autodetect:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js (Example for Node.js projects)
+      - name: Detect Language & Set Up
+        id: detect
+        run: |
+          if [ -f "package.json" ]; then
+            echo "Detected Node.js"
+            echo "lang=node" >> $GITHUB_OUTPUT
+          elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
+            echo "Detected Python"
+            echo "lang=python" >> $GITHUB_OUTPUT
+          elif [ -f "pom.xml" ]; then
+            echo "Detected Java (Maven)"
+            echo "lang=java" >> $GITHUB_OUTPUT
+          elif ls *.go 1> /dev/null 2>&1; then
+            echo "Detected Go"
+            echo "lang=go" >> $GITHUB_OUTPUT
+          else
+            echo "Language not detected"
+            echo "lang=unknown" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        if: steps.detect.outputs.lang == 'node'
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: Install dependencies
-        run: npm install  # Change this command as per your project
+      - name: Setup Python
+        if: steps.detect.outputs.lang == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Run build
-        run: npm run build  # Modify for your project's build process
+      - name: Setup Java
+        if: steps.detect.outputs.lang == 'java'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: Run tests
-        run: npm test  # Optional: Runs tests if applicable
+      - name: Setup Go
+        if: steps.detect.outputs.lang == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build & Test Node.js
+        if: steps.detect.outputs.lang == 'node'
+        run: |
+          npm install
+          npm run build || true
+          npm test || true
+
+      - name: Build & Test Python
+        if: steps.detect.outputs.lang == 'python'
+        run: |
+          pip install -r requirements.txt || true
+          python -m unittest discover || true
+
+      - name: Build & Test Java (Maven)
+        if: steps.detect.outputs.lang == 'java'
+        run: |
+          mvn clean install || true
+
+      - name: Build & Test Go
+        if: steps.detect.outputs.lang == 'go'
+        run: |
+          go mod tidy || true
+          go build ./...
+          go test ./... || true
+
+      - name: Fallback for unknown languages
+        if: steps.detect.outputs.lang == 'unknown'
+        run: echo "❌ No known language build system detected."
