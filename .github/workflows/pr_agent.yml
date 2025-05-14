@@ -1,0 +1,22 @@
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+    
+jobs:
+  pr_agent_job:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.comment.body == '/review' || github.event.comment.body == '/describe' || github.event.comment.body == '/improve' || github.event.comment.body == '/ask' || github.event.comment.body == '/update_changelog' || github.event.sender.type != 'Bot' && github.event.pull_request }}
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+    name: Run PR Agent with Gemini
+    steps:
+      - name: PR Agent action
+        uses: qodo-ai/pr-agent@main
+        env:
+          GOOGLE_AI_STUDIO_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CONFIG_MODEL: "gemini-2.5-pro-preview-05-06"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
